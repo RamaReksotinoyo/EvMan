@@ -55,12 +55,14 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'core.authentication.JWTCookieAuthentication',
         # 'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
     ),
     # "DEFAULT_AUTHENTICATION_CLASSES": [
     #     "core.authentication.TokenAuthentication",
     # ],
     # 'EXCEPTION_HANDLER': 'core.custom_exception_handler.custom_exception_handler',
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Pastikan ini ada
+    ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
@@ -87,6 +89,9 @@ SPECTACULAR_SETTINGS = {
             }
         }
     ],
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    'SERVE_AUTHENTICATION': None,
+    'SERVE_PUBLIC': True,
 }
 
 SIMPLE_JWT = {
@@ -107,6 +112,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.DisableAuthForSwaggerMiddleware',
 ]
 
 ROOT_URLCONF = 'EvMan.urls'
@@ -151,7 +157,9 @@ DATABASES = {
         'NAME': 'evman',
         'USER': 'evman',
         'PASSWORD': 'evman',
-        'HOST': 'localhost',
+        # 'HOST': 'localhost',
+        # 'PORT': '5432',
+        'HOST': 'postgres',
         'PORT': '5432',
     }
 }

@@ -6,7 +6,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, message="Received a n
 
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import AnonymousUser, User
-from ..apis import IsAuthenticatedExceptPaths
+# from ..apis import IsAuthenticatedExceptPaths
+from ..authentication import IsAuthenticatedExceptPaths
 from ..authentication import JWTCookieAuthentication
 from core.utils.base_response import BaseResponse
 from rest_framework_simplejwt.tokens import AccessToken
@@ -23,6 +24,13 @@ class IsAuthenticatedExceptPathsTest(TestCase):
     def test_public_get_events(self):
         """GET /api/events/ without authentication must be allowed"""
         request = self.factory.get('/api/events/')
+        request.user = AnonymousUser()
+        self.assertTrue(self.permission.has_permission(request, None))
+
+# {'url': '/api/docs/', 'method': 'GET'},
+    def test_public_get_docs(self):
+        """GET /api/docs/ without authentication must be allowed"""
+        request = self.factory.get('/api/docs/')
         request.user = AnonymousUser()
         self.assertTrue(self.permission.has_permission(request, None))
 

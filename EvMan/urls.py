@@ -17,12 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 # from core.apis import LoginView
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from core.apis import EventViewSet, SessionViewSet, AttendeeViewSet, TrackViewSet
 from core.serializers import CustomTokenObtainPairView, CustomTokenRefreshView
+
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from rest_framework.permissions import AllowAny
 
 router = DefaultRouter()
 router.register(r'api/events', EventViewSet, basename='event')
@@ -32,12 +34,20 @@ router.register(r'api/tracks', TrackViewSet, basename='track')
 
     # path("api/login/", LoginView.as_view(), name="auth-login"),
 
+
 urlpatterns = [
 
     path('', include(router.urls)),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    # path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    # path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    # path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # path('api/schema/', SpectacularAPIView.as_view(permission_classes=[AllowAny]), name='schema'),
+    # path('api/docs/', SpectacularSwaggerView.as_view(permission_classes=[AllowAny]), name='swagger-ui'),
+    # path('api/redoc/', SpectacularRedocView.as_view(permission_classes=[AllowAny]), name='redoc'),
+    path('api/schema/', SpectacularAPIView.as_view(permission_classes=[AllowAny]), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[AllowAny]), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema', permission_classes=[AllowAny]), name='redoc'),
 
     path('admin/', admin.site.urls),
 

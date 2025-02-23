@@ -70,6 +70,11 @@ from .utils.base_response import BaseResponse
 
 class JWTCookieAuthentication(JWTAuthentication):
     def authenticate(self, request):
+        # Jika request mengarah ke /api/docs/, abaikan autentikasi
+        if request.path.startswith('/api/docs/') or request.path.startswith('/api/schema/'):
+            return None
+
+        # Ambil token dari cookie
         token = request.COOKIES.get('access_token')
         if not token:
             raise AuthenticationFailed(
@@ -84,12 +89,13 @@ class JWTCookieAuthentication(JWTAuthentication):
             raise AuthenticationFailed(
                 detail=BaseResponse.error_response("Invalid authentication token.")
             )
-
 class IsAuthenticatedExceptPaths(BasePermission):
     PUBLIC_PATHS = [
         {'url': '/api/events/', 'method': 'GET'},
         # {'url': '/api/events/{id}', 'method': 'GET'},
         {'url': '/api/attendees/', 'method': 'POST'},
+        {'url': '/api/schema/', 'method': 'GET'},
+        {'url': '/api/docs/', 'method': 'GET'},
     ]
 
     def has_permission(self, request, view):
