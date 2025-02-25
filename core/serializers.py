@@ -7,6 +7,7 @@ from rest_framework import exceptions
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import serializers
 from .models import Event, Track, Session, Attendee
+from .utils import helpers
 
 # class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 #     def validate(self, attrs):
@@ -258,8 +259,12 @@ class AttendeeSerializer(serializers.ModelSerializer):
         model = Attendee
         fields = ['id', 'name', 'email', 'event']
 
+    def validate_name(self, value):
+        """Input sanitation of name before saving."""
+        return helpers.sanitize_input(value)
+
     def validate(self, data):
-        """Validasi agar email tidak duplikat dalam satu event."""
+        """Validate so that emails are not duplicated in one event."""
         event = data.get("event")
         email = data.get("email")
 
@@ -296,12 +301,21 @@ class TrackSerializer(serializers.ModelSerializer):
 
         event_id = self.initial_data.get("event")
         if not event_id:
-            raise serializers.ValidationError("Event is required.")
+            # raise serializers.ValidationError("Event is required.")
+            raise serializers.ValidationError(
+                detail=BaseResponse.error_response("Event is required.")["message"]
+            )
 
         if not Event.objects.filter(id=event_id).exists():
-            raise serializers.ValidationError("Event does not exist.")
+            # raise serializers.ValidationError("Event does not exist.")
+            raise serializers.ValidationError(
+                detail=BaseResponse.error_response("Event does not exist")["message"]
+            )
 
         if Track.objects.filter(name=data, event_id=event_id).exists():
-            raise serializers.ValidationError("Track name must be unique within the event.")
+            # raise serializers.ValidationError("Track name must be unique within the event.")
+            raise serializers.ValidationError(
+                detail=BaseResponse.error_response("Track name must be unique within the event")["message"]
+            )
         
         return data

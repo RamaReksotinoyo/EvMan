@@ -52,29 +52,50 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import AuthenticationFailed
 from .utils.base_response import BaseResponse
-# from .exceptions import custom_exception_handler
+import re
 
 
 # class JWTCookieAuthentication(JWTAuthentication):
 #     def authenticate(self, request):
+#         # Jika request mengarah ke /api/docs/, abaikan autentikasi
+#         if request.path.startswith('/api/docs/') or request.path.startswith('/api/attendees/') or request.path.startswith('/api/schema/'):
+#             return None
+
+#         # Ambil token dari cookie
 #         token = request.COOKIES.get('access_token')
 #         if not token:
-#             return None
+#             raise AuthenticationFailed(
+#                 detail=BaseResponse.error_response("Authentication credentials were not provided.")
+#             )
 
 #         try:
 #             validated_token = self.get_validated_token(token)
 #             user = self.get_user(validated_token)
 #             return user, validated_token
-#         except Exception:
-#             return None
+#         except AuthenticationFailed:
+#             raise AuthenticationFailed(
+#                 detail=BaseResponse.error_response("Invalid authentication token.")
+#             )
 
 class JWTCookieAuthentication(JWTAuthentication):
+    PUBLIC_PATHS = [
+        r'^/api/events/[^/]+/details/$', 
+        # r'^/api/attendees/$',
+        r'^/api/schema/$',
+        r'^/api/docs/$',
+    ]
+
     def authenticate(self, request):
-        # Jika request mengarah ke /api/docs/, abaikan autentikasi
-        if request.path.startswith('/api/docs/') or request.path.startswith('/api/schema/'):
+        current_path = request.path
+        current_method = request.method
+
+        if current_path == "/api/attendees/" and current_method == "POST":
             return None
 
-        # Ambil token dari cookie
+        for pattern in self.PUBLIC_PATHS:
+            if re.match(pattern, current_path):
+                return None
+
         token = request.COOKIES.get('access_token')
         if not token:
             raise AuthenticationFailed(
@@ -89,11 +110,13 @@ class JWTCookieAuthentication(JWTAuthentication):
             raise AuthenticationFailed(
                 detail=BaseResponse.error_response("Invalid authentication token.")
             )
+
+
 class IsAuthenticatedExceptPaths(BasePermission):
     PUBLIC_PATHS = [
-        {'url': '/api/events/', 'method': 'GET'},
-        # {'url': '/api/events/{id}', 'method': 'GET'},
+        {'url': r'^/api/events/[^/]+/details/$', 'method': 'GET'},
         {'url': '/api/attendees/', 'method': 'POST'},
+        # {'url': '/api/attendees/', 'method': 'GET'},
         {'url': '/api/schema/', 'method': 'GET'},
         {'url': '/api/docs/', 'method': 'GET'},
     ]
@@ -107,11 +130,10 @@ class IsAuthenticatedExceptPaths(BasePermission):
 
             if '{id}' in url_pattern:
                 pattern = url_pattern.replace('{id}', '[^/]+')
-                import re
                 if re.match(pattern, current_path) and current_method == path_config['method']:
                     return True
 
-            elif current_path == url_pattern and current_method == path_config['method']:
+            elif re.match(url_pattern, current_path) and current_method == path_config['method']:
                 return True
 
         return request.user and request.user.is_authenticated

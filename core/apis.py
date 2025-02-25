@@ -1,3 +1,4 @@
+from django.http import Http404
 from django.db import connection
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework.decorators import action
@@ -16,6 +17,7 @@ from .authentication import JWTCookieAuthentication, IsAuthenticatedExceptPaths
 from rest_framework.decorators import action
 from django.db.utils import IntegrityError
 from .serializers import EventSerializer, SessionSerializer, AttendeeSerializer, TrackSerializer
+from .utils.limit import rate_limiter 
 
 
 class EventPagination(PageNumberPagination):
@@ -27,7 +29,8 @@ class EventPagination(PageNumberPagination):
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedExceptPaths]
     pagination_class = EventPagination
     authentication_classes = [JWTCookieAuthentication]
     http_method_names = ['get', 'post', 'put', 'delete']
@@ -201,6 +204,7 @@ class EventViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=True, methods=["get"], url_path="details")
+    @rate_limiter(10, 1, 2)
     def retrieve_with_details(self, request, pk=None):
         """
         This is a long handler with a long execution time, 
@@ -267,17 +271,6 @@ class EventViewSet(viewsets.ModelViewSet):
                         track_data["sessions"].append(session_data)
 
                     event_data["tracks"].append(track_data)
-
-                cursor.execute("""
-                    SELECT id, name, email
-                    FROM core_attendee
-                    WHERE event_id = %s
-                """, [pk])
-                attendees = cursor.fetchall()
-
-                event_data["attendees"] = [
-                    {"id": att[0], "name": att[1], "email": att[2]} for att in attendees
-                ]
 
             return Response(
                 BaseResponse.success_response(
@@ -723,7 +716,7 @@ class TrackViewSet(viewsets.ModelViewSet):
                 ),
                 status=status.HTTP_200_OK
             )
-        except Track.DoesNotExist:
+        except Http404:
             return Response(
                 BaseResponse.error_response("Track not found"),
                 status=status.HTTP_404_NOT_FOUND
@@ -750,7 +743,7 @@ class TrackViewSet(viewsets.ModelViewSet):
                 ),
                 status=status.HTTP_204_NO_CONTENT
             )
-        except Track.DoesNotExist:
+        except Http404:
             return Response(
                 BaseResponse.error_response("Track not found"),
                 status=status.HTTP_404_NOT_FOUND
