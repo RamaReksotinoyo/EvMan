@@ -61,7 +61,10 @@ REST_FRAMEWORK = {
     # ],
     # 'EXCEPTION_HANDLER': 'core.custom_exception_handler.custom_exception_handler',
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Pastikan ini ada
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'core.authentication.IsAuthenticatedExceptPaths',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }

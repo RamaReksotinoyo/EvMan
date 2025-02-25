@@ -204,3 +204,260 @@ class AttendeeViewSetTest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data['message'], "No attendees found for the given event")
+
+
+class TrackViewSetTest(APITestCase):
+    def setUp(self):
+        # User authentication
+        self.user = User.objects.create_user(username='testuser', password='testpassword')
+        self.client.force_authenticate(user=self.user)
+
+        # Buat event untuk testing
+        self.event = Event.objects.create(
+            name="Tech Conference 2025",
+            description="Annual tech conference for developers and engineers.",
+            start_date="2025-11-15",
+            end_date="2025-11-17",
+            venue="Jakarta Convention Center",
+            capacity=1000
+        )
+
+        # Track for testing
+        self.track = Track.objects.create(
+            name="Web Development",
+            event=self.event
+        )
+
+    def test_create_track(self):
+        """Test creating a new track."""
+        url = reverse('track-list')
+        data = {
+            "name": "Data Science",
+            "event": self.event.id
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Track.objects.count(), 2)  # Track awal + track baru
+
+    def test_list_tracks(self):
+        """Test retrieving a list of tracks."""
+        url = reverse('track-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+
+    def test_retrieve_track(self):
+        """Test retrieving a single track by ID."""
+        url = reverse('track-detail', args=[self.track.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['name'], "Web Development")
+
+    def test_update_track(self):
+        """Test updating a track."""
+        url = reverse('track-detail', args=[self.track.id])
+        data = {
+            "name": "Advanced Web Development",
+            "event": self.event.id
+        }
+        response = self.client.put(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.name, "Advanced Web Development")
+
+    def test_delete_track(self):
+        """Test deleting a track."""
+        url = reverse('track-detail', args=[self.track.id])
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Track.objects.count(), 0)  # Track sudah dihapus
+
+    def test_create_track_with_invalid_event(self):
+        """Test creating a track with an invalid event ID."""
+        url = reverse('track-list')
+        data = {
+            "name": "Data Science",
+            "event": "8f0f753e-9634-4a57-b9d4-40ec77238df2"  # Event ID tidak valid
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Validation error", response.data['message'])
+
+    def test_create_track_with_empty_name(self):
+        """Test creating a track with an empty name."""
+        url = reverse('track-list')
+        data = {
+            "name": "",  # Empty track name
+            "event": self.event.id
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Validation error", response.data['message'])
+
+    def test_retrieve_nonexistent_track(self):
+        """Test retrieving a track that does not exist."""
+        url = reverse('track-detail', args=['8f0f753e-9634-4a57-b9d4-40ec77238df2'])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("Track not found", response.data['message'])
+
+    def test_delete_nonexistent_track(self):
+        """Test deleting a track that does not exist."""
+        url = reverse('track-detail', args=['8f0f753e-9634-4a57-b9d4-40ec77238df2'])
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("Track not found", response.data['message'])
+
+
+class SessionViewSetTestCase(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        
+        # User authentication
+        self.user = User.objects.create_user(username='testuser', password='testpassword')
+        self.client.force_authenticate(user=self.user)
+
+        # Create event and track
+        self.event = Event.objects.create(
+            id=uuid.uuid4(),
+            name="Test Event",
+            start_date=now(),
+            end_date=now() + timedelta(days=2),
+            venue="ytta",
+            description="ytta",
+            capacity=50,
+        )
+        
+        self.track = Track.objects.create(
+            id=uuid.uuid4(),
+            name="Test Track",
+            event=self.event
+        )
+
+        # Create session
+        self.session = Session.objects.create(
+            id=uuid.uuid4(),
+            title="Test Session",
+            description="A test session",
+            event=self.event,
+            track=self.track,
+            start_time=now() + timedelta(hours=1),
+            end_time=now() + timedelta(hours=2),
+            speaker="Test Speaker"
+        )
+
+        self.session_url = f"/api/sessions/{self.session.id}/"
+
+    def test_create_session(self):
+        """ Test creating new sesion """
+        data = {
+            "title": "New Session",
+            "description": "A new session",
+            "event": str(self.event.id),
+            "track": str(self.track.id),
+            "start_time": (now() + timedelta(hours=3)).isoformat(),
+            "end_time": (now() + timedelta(hours=4)).isoformat(),
+            "speaker": "New Speaker"
+        }
+        response = self.client.post("/api/sessions/", data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["success"], True)
+        self.assertEqual(response.data["message"], "Session created successfully")
+
+    def test_list_sessions(self):
+        """ Test get list of session """
+        response = self.client.get("/api/sessions/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+
+    def test_retrieve_session(self):
+        """ Test retrieve session by ID """
+        response = self.client.get(self.session_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["success"], True)
+        self.assertEqual(response.data["data"]["title"], self.session.title)
+
+    def test_update_session(self):
+        """ Test update session """
+        updated_data = {
+            "title": "Updated Session Title",
+            "description": self.session.description,
+            "event": str(self.event.id),
+            "track": str(self.track.id),
+            "start_time": self.session.start_time.isoformat(),
+            "end_time": self.session.end_time.isoformat(),
+            "speaker": self.session.speaker
+        }
+        response = self.client.put(self.session_url, updated_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["success"], True)
+        self.assertEqual(response.data["data"]["title"], "Updated Session Title")
+
+    def test_delete_session(self):
+        """ Test delete session """
+        response = self.client.delete(self.session_url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Session.objects.filter(id=self.session.id).exists(), False)
+
+    def test_session_cannot_overlap(self):
+        """ Test validasi: session cant collide with another session in the same track """
+        overlapping_data = {
+            "title": "Overlapping Session",
+            "description": "Overlapping session test",
+            "event": str(self.event.id),
+            "track": str(self.track.id),
+            "start_time": self.session.start_time.isoformat(),
+            "end_time": (self.session.start_time + timedelta(hours=1)).isoformat(),
+            "speaker": "Overlapping Speaker"
+        }
+        response = self.client.post("/api/sessions/", overlapping_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Session overlaps", response.data["message"])
+
+    def test_session_must_be_within_event_dates(self):
+        """ Test validasi: Session must be within the event date range """
+        invalid_data = {
+            "title": "Invalid Date Session",
+            "description": "Invalid date session test",
+            "event": str(self.event.id),
+            "track": str(self.track.id),
+            "start_time": (self.event.start_date - timedelta(days=1)).isoformat(),
+            "end_time": (self.event.start_date + timedelta(hours=1)).isoformat(),
+            "speaker": "Invalid Date Speaker"
+        }
+        response = self.client.post("/api/sessions/", invalid_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Session must be within event duration", response.data["message"])
+
+    def test_session_track_must_belong_to_event(self):
+        """ Test validasi: Track must be suit with the event """
+        new_event = Event.objects.create(
+            id=uuid.uuid4(),
+            name="Another Event",
+            start_date=now(),
+            end_date=now() + timedelta(days=3),
+            venue="ytta",
+            description="ytta",
+            capacity=50,
+        )
+
+        invalid_data = {
+            "title": "Invalid Track Session",
+            "description": "Invalid track session test",
+            "event": str(new_event.id),
+            "track": str(self.track.id),  # This track belongs to a different event
+            "start_time": (now() + timedelta(hours=5)).isoformat(),
+            "end_time": (now() + timedelta(hours=6)).isoformat(),
+            "speaker": "Invalid Track Speaker"
+        }
+        response = self.client.post("/api/sessions/", invalid_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Track does not belong to the selected event", response.data["message"])
