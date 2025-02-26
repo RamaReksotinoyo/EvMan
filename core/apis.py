@@ -18,6 +18,7 @@ from rest_framework.decorators import action
 from django.db.utils import IntegrityError
 from .serializers import EventSerializer, SessionSerializer, AttendeeSerializer, TrackSerializer
 from .utils.limit import rate_limiter 
+from django.utils import timezone
 
 
 class EventPagination(PageNumberPagination):
@@ -107,8 +108,16 @@ class EventViewSet(viewsets.ModelViewSet):
             )
         except ValidationError as e:
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
+            if isinstance(e.detail, dict):
+                for field, errors in e.detail.items():
+                    if isinstance(errors, list):
+                        error_message = errors[0]
+                        return Response(
+                            BaseResponse.error_response(str(error_message)),
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
             return Response(
-                BaseResponse.error_response(error_message),
+                BaseResponse.error_response(str(e.detail)),
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -143,9 +152,25 @@ class EventViewSet(viewsets.ModelViewSet):
         summary="Update Event",
         description="Update event details by ID",
         request=EventSerializer,
-        responses={200: EventSerializer}
+        responses={
+            200: EventSerializer,
+            400: {"type": "object", "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "data": {"type": "null"}
+            }},
+            404: {"type": "object", "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "data": {"type": "null"}
+            }},
+            500: {"type": "object", "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "data": {"type": "null"}
+            }}
+        }
     )
-
     def update(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
@@ -161,8 +186,16 @@ class EventViewSet(viewsets.ModelViewSet):
             )
         except ValidationError as e:
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
+            if isinstance(e.detail, dict):
+                for field, errors in e.detail.items():
+                    if isinstance(errors, list):
+                        error_message = errors[0]
+                        return Response(
+                            BaseResponse.error_response(str(error_message)),
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
             return Response(
-                BaseResponse.error_response(error_message),
+                BaseResponse.error_response(str(e.detail)),
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Event.DoesNotExist:
@@ -203,25 +236,29 @@ class EventViewSet(viewsets.ModelViewSet):
             )
 
 
-    @action(detail=True, methods=["get"], url_path="details")
+    @action(detail=False, methods=["get"], url_path="current")
     @rate_limiter(10, 1, 2)
-    def retrieve_with_details(self, request, pk=None):
+    def get_current_event(self, request):
         """
         This is a long handler with a long execution time, 
         I decided to use raw query for the sake of performance.
         """
         try:
             with connection.cursor() as cursor:
+                current_time = timezone.now()
+                
                 cursor.execute("""
                     SELECT id, name, description, start_date, end_date, venue, capacity, created_at, updated_at
                     FROM core_event
-                    WHERE id = %s
-                """, [pk])
+                    WHERE %s BETWEEN start_date AND end_date
+                    LIMIT 1
+                """, [current_time])
+                
                 event = cursor.fetchone()
 
                 if not event:
                     return Response(
-                        BaseResponse.error_response("Event not found"),
+                        BaseResponse.error_response("No ongoing event found"),
                         status=status.HTTP_404_NOT_FOUND
                     )
 
@@ -242,7 +279,7 @@ class EventViewSet(viewsets.ModelViewSet):
                     SELECT id, name
                     FROM core_track
                     WHERE event_id = %s
-                """, [pk])
+                """, [event[0]])
                 tracks = cursor.fetchall()
 
                 for track in tracks:

@@ -8,6 +8,8 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import serializers
 from .models import Event, Track, Session, Attendee
 from .utils import helpers
+from datetime import timedelta
+
 
 # class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 #     def validate(self, attrs):
@@ -177,6 +179,22 @@ class CustomTokenRefreshView(TokenRefreshView):
 
 
 class EventSerializer(serializers.ModelSerializer):
+
+    start_date = serializers.DateTimeField(
+        format="%Y-%m-%dT%H:%M:%S",
+        input_formats=["%Y-%m-%dT%H:%M:%S"],
+        error_messages={
+            'invalid': 'Date format must be YYYY-MM-DDThh:mm:ss (Example: 2024-02-25T14:30:00)'
+        }
+    )
+    end_date = serializers.DateTimeField(
+        format="%Y-%m-%dT%H:%M:%S",
+        input_formats=["%Y-%m-%dT%H:%M:%S"],
+        error_messages={
+            'invalid': 'Date format must be YYYY-MM-DDThh:mm:ss (Example: 2024-02-25T14:30:00)'
+        }
+    )
+
     class Meta:
         model = Event
         fields = '__all__'
@@ -185,6 +203,18 @@ class EventSerializer(serializers.ModelSerializer):
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         
+        # Get latest event's end_date
+        latest_event = Event.objects.order_by('-end_date').first()
+        
+        if latest_event:
+            minimum_start_date = latest_event.end_date + timedelta(days=3)
+            if start_date <= minimum_start_date:
+                raise serializers.ValidationError(
+                    detail=BaseResponse.error_response(
+                        f"New event can only be created 2 days after the last event ends (after {minimum_start_date.strftime('%Y-%m-%dT%H:%M:%S')})"
+                    )["message"]
+                )
+
         if end_date <= start_date:
             raise serializers.ValidationError(
                 detail=BaseResponse.error_response("End date must be after start date")["message"]

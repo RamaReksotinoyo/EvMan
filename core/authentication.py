@@ -80,7 +80,7 @@ import re
 class JWTCookieAuthentication(JWTAuthentication):
     PUBLIC_PATHS = [
         r'^/api/events/[^/]+/details/$', 
-        # r'^/api/attendees/$',
+        r'^/api/events/current/$',
         r'^/api/schema/$',
         r'^/api/docs/$',
     ]
@@ -116,7 +116,7 @@ class IsAuthenticatedExceptPaths(BasePermission):
     PUBLIC_PATHS = [
         {'url': r'^/api/events/[^/]+/details/$', 'method': 'GET'},
         {'url': '/api/attendees/', 'method': 'POST'},
-        # {'url': '/api/attendees/', 'method': 'GET'},
+        {'url': '/api/events/current/', 'method': 'GET'},
         {'url': '/api/schema/', 'method': 'GET'},
         {'url': '/api/docs/', 'method': 'GET'},
     ]
