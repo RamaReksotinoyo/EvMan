@@ -15,8 +15,8 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 
-# import warnings
-# warnings.filterwarnings('ignore')
+import warnings
+warnings.filterwarnings('ignore')
 # from core.apis import JWTAuthentication
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

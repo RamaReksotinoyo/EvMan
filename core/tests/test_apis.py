@@ -13,11 +13,12 @@ from django.utils.timezone import now, timedelta
 import uuid
 from django.urls import reverse
 from django.test import TestCase
+from django.utils import timezone
 
 
 User = get_user_model()
 
-class EventViewSetTestCase(APITestCase):
+class EventAPISetTestCase(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='fafifu',
@@ -57,12 +58,13 @@ class EventViewSetTestCase(APITestCase):
         self.assertEqual(response.data['data']['name'], "Event 1")
 
     def test_create_event(self):
+        current_time = timezone.now()
         new_event_data = {
             "name": "New Event",
-            "start_date": (now() + timedelta(days=10)).isoformat(),
-            "end_date": (now() + timedelta(days=12)).isoformat(),
-            "venue": "(now() + timedelta(days=12)).isoformat()",
-            "description": "(now() + timedelta(days=12)).isoformat()",
+            "start_date": (current_time + timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%S"),
+            "end_date": (current_time + timedelta(days=22)).strftime("%Y-%m-%dT%H:%M:%S"),
+            "venue": "Test Venue",
+            "description": "Test Description",
             "capacity": 50
         }
         response = self.client.post('/api/events/', new_event_data, format='json')
@@ -84,9 +86,39 @@ class EventViewSetTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Event.objects.filter(id=self.event1.id).exists())
         
+    def test_create_event_before_minimum_gap(self):
+        """Test creating event before minimum 3-day gap (should fail)"""
+        current_time = timezone.now()
+        new_event_data = {
+            "name": "Too Early Event",
+            "start_date": (current_time + timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%S"),  # Only 1 day after event2 ends
+            "end_date": (current_time + timedelta(days=9)).strftime("%Y-%m-%dT%H:%M:%S"),
+            "venue": "Test Venue",
+            "description": "This event is scheduled too soon after the previous event",
+            "capacity": 50
+        }
+        response = self.client.post('/api/events/', new_event_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+
+    def test_create_event_with_valid_gap(self):
+        """Test creating event with proper 3-day gap (should succeed)"""
+        current_time = timezone.now()
+        new_event_data = {
+            "name": "Properly Scheduled Event",
+            "start_date": (current_time + timedelta(days=11)).strftime("%Y-%m-%dT%H:%M:%S"),  # 4 days after event2 ends
+            "end_date": (current_time + timedelta(days=12)).strftime("%Y-%m-%dT%H:%M:%S"),
+            "venue": "Test Venue",
+            "description": "This event has proper gap after the previous event",
+            "capacity": 50
+        }
+        response = self.client.post('/api/events/', new_event_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['success'])
 
 
-class AttendeeViewSetTest(TestCase):
+
+class AttendeeAPISetTest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(
@@ -206,7 +238,7 @@ class AttendeeViewSetTest(TestCase):
         self.assertEqual(response.data['message'], "No attendees found for the given event")
 
 
-class TrackViewSetTest(APITestCase):
+class TrackAPISetTest(APITestCase):
     def setUp(self):
         # User authentication
         self.user = User.objects.create_user(username='testuser', password='testpassword')
@@ -309,7 +341,7 @@ class TrackViewSetTest(APITestCase):
         self.assertIn("Track not found", response.data['message'])
 
 
-class SessionViewSetTestCase(TestCase):
+class SessionAPISetTestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
         

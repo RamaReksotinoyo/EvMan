@@ -87,6 +87,20 @@ class EventModelTest(TestCase):
         with self.assertRaises(ValidationError):
             event.full_clean()
 
+    def test_event_valid_gap(self):
+        """Test event creation with valid gap (more than 3 days) from last event."""
+        event = Event(
+            name="Valid Gap Event",
+            description="This event has proper gap after the last event",
+            start_date=datetime(2023, 12, 5, 10, 0),  # 4 days after event1
+            end_date=datetime(2023, 12, 5, 18, 0),
+            venue="Room 108",
+            capacity=50
+        )
+        event.full_clean()
+        event.save()
+        self.assertEqual(Event.objects.count(), 2)
+
 
 class SessionModelTest(TestCase):
 
