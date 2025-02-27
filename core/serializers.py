@@ -202,16 +202,15 @@ class EventSerializer(serializers.ModelSerializer):
     def validate(self, data):
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        
-        # Get latest event's end_date
-        latest_event = Event.objects.order_by('-end_date').first()
-        
-        if latest_event:
+
+        latest_event = Event.objects.exclude(id=self.instance.id if self.instance else None).order_by('-end_date').first()
+
+        if latest_event and not self.instance:
             minimum_start_date = latest_event.end_date + timedelta(days=3)
             if start_date <= minimum_start_date:
                 raise serializers.ValidationError(
                     detail=BaseResponse.error_response(
-                        f"New event can only be created 2 days after the last event ends (after {minimum_start_date.strftime('%Y-%m-%dT%H:%M:%S')})"
+                        f"New event can only be created 3 days after the last event ends (after {minimum_start_date.strftime('%Y-%m-%dT%H:%M:%S')})"
                     )["message"]
                 )
 

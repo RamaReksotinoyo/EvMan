@@ -19,6 +19,9 @@ from django.db.utils import IntegrityError
 from .serializers import EventSerializer, SessionSerializer, AttendeeSerializer, TrackSerializer
 from .utils.limit import rate_limiter 
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EventPagination(PageNumberPagination):
@@ -64,15 +67,17 @@ class EventViewSet(viewsets.ModelViewSet):
             queryset = self.get_queryset()
 
             user_id = request.user.id
-            print(f"User ID: {user_id}")  # For debugging
+            logger.debug(f"User ID: {user_id}")
 
             if not queryset.exists():
+                logger.warning("No events found")
                 return Response(
                     BaseResponse.error_response("No events found"),
                     status=status.HTTP_404_NOT_FOUND
                 )
             page = self.paginate_queryset(queryset)
             if not page:
+                logger.warning("No events found for the given page")
                 return Response(
                     BaseResponse.error_response("No events found for the given page"),
                     status=status.HTTP_404_NOT_FOUND
@@ -83,6 +88,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 message="Events retrieved successfully"
             ))
         except Exception as e:
+            logger.error(f"Error in list view: {str(e)}")
             return Response(
                 BaseResponse.error_response(str(e)),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -112,24 +118,28 @@ class EventViewSet(viewsets.ModelViewSet):
                 for field, errors in e.detail.items():
                     if isinstance(errors, list):
                         error_message = errors[0]
+                        logger.warning(f"Validation error in create view: {error_message}")
                         return Response(
                             BaseResponse.error_response(str(error_message)),
                             status=status.HTTP_400_BAD_REQUEST
                         )
+            logger.warning(f"Validation error in create view: {str(e.detail)}")
             return Response(
                 BaseResponse.error_response(str(e.detail)),
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except Exception as e:
+            logger.error(f"Internal Server Error in create view: {str(e)}", exc_info=True)
+            return Response(
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    @extend_schema(
-        summary="Retrieve Event",
-        description="Get event details by ID",
-        responses={200: EventSerializer}
-    )
     def retrieve(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
             serializer = self.get_serializer(instance)
+            logger.info(f"Event retrieved successfully: {instance.id}")
             return Response(
                 BaseResponse.success_response(
                     data=serializer.data,
@@ -138,13 +148,15 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         except Event.DoesNotExist:
+            logger.warning(f"Event not found: ID {kwargs.get('pk')}")
             return Response(
                 BaseResponse.error_response("Event not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in retrieve view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -177,6 +189,7 @@ class EventViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
+            logger.info(f"Event updated successfully: {instance.id}")
             return Response(
                 BaseResponse.success_response(
                     data=serializer.data,
@@ -190,22 +203,26 @@ class EventViewSet(viewsets.ModelViewSet):
                 for field, errors in e.detail.items():
                     if isinstance(errors, list):
                         error_message = errors[0]
+                        logger.warning(f"Validation error in update view: {error_message}")
                         return Response(
                             BaseResponse.error_response(str(error_message)),
                             status=status.HTTP_400_BAD_REQUEST
                         )
+            logger.warning(f"Validation error in update view: {str(e.detail)}")
             return Response(
                 BaseResponse.error_response(str(e.detail)),
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Event.DoesNotExist:
+            logger.warning(f"Event not found: ID {kwargs.get('pk')}")
             return Response(
                 BaseResponse.error_response("Event not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in update view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -218,6 +235,7 @@ class EventViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_object()
             instance.delete()
+            logger.info(f"Event deleted successfully: {instance.id}")
             return Response(
                 BaseResponse.success_response(
                     message="Event deleted successfully"
@@ -225,13 +243,15 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_204_NO_CONTENT
             )
         except Event.DoesNotExist:
+            logger.warning(f"Event not found: ID {kwargs.get('pk')}")
             return Response(
                 BaseResponse.error_response("Event not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in destroy view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -244,6 +264,7 @@ class EventViewSet(viewsets.ModelViewSet):
         I decided to use raw query for the sake of performance.
         """
         try:
+            logger.info("Fetching current event")
             with connection.cursor() as cursor:
                 current_time = timezone.now()
                 
@@ -257,6 +278,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 event = cursor.fetchone()
 
                 if not event:
+                    logger.warning("No ongoing event found")
                     return Response(
                         BaseResponse.error_response("No ongoing event found"),
                         status=status.HTTP_404_NOT_FOUND
@@ -274,6 +296,8 @@ class EventViewSet(viewsets.ModelViewSet):
                     "updated_at": event[8],
                     "tracks": []
                 }
+
+                logger.info(f"Event found: {event_data['name']} (ID: {event_data['id']})")
 
                 cursor.execute("""
                     SELECT id, name
@@ -309,17 +333,19 @@ class EventViewSet(viewsets.ModelViewSet):
 
                     event_data["tracks"].append(track_data)
 
-            return Response(
-                BaseResponse.success_response(
-                    data=event_data,
-                    message="Event details retrieved successfully"
-                ),
-                status=status.HTTP_200_OK
-            )
+                logger.info(f"Event details retrieved successfully: {event_data['name']} (ID: {event_data['id']})")
+                return Response(
+                    BaseResponse.success_response(
+                        data=event_data,
+                        message="Event details retrieved successfully"
+                    ),
+                    status=status.HTTP_200_OK
+                )
 
         except Exception as e:
+            logger.error(f"Error in get_current_event view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -364,6 +390,7 @@ class SessionViewSet(viewsets.ModelViewSet):
 
             page = self.paginate_queryset(queryset)
             if not page:
+                logger.warning("No sessions found for the given page")
                 return Response(
                     BaseResponse.error_response("No sessions found for the given page"),
                     status=status.HTTP_404_NOT_FOUND
@@ -375,6 +402,7 @@ class SessionViewSet(viewsets.ModelViewSet):
                 message="Sessions retrieved successfully"
             ))
         except Exception as e:
+            logger.error(f"Error in list view: {str(e)}", exc_info=True)
             return Response(
                 BaseResponse.error_response(str(e)),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -399,17 +427,25 @@ class SessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED
             )
         except ValidationError as e:
+            error_message = str(e.detail)
+            logger.warning(f"Validation error in create view: {error_message}")
             error_dict = e.detail
             if 'track' in error_dict:
-                error_message = error_dict['track'][0]  # Ambil pesan error track
+                error_message = error_dict['track'][0]
                 print('error_message: ', error_message)
             else:
-                error_message = next(iter(error_dict.values()))[0]  # Ambil error pertama
+                error_message = next(iter(error_dict.values()))[0]
                 print('error_message: ', error_message)
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
             return Response(
                 BaseResponse.error_response(error_message),
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Internal Server Error in create view: {str(e)}", exc_info=True)
+            return Response(
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @extend_schema(
@@ -429,11 +465,13 @@ class SessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         except Session.DoesNotExist:
+            logger.warning("Session not found")
             return Response(
                 BaseResponse.error_response("Session not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in retrieve view: {str(e)}", exc_info=True)
             return Response(
                 BaseResponse.error_response(str(e)),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -487,19 +525,23 @@ class SessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         except ValidationError as e:
+            error_message = str(e.detail)
+            logger.warning(f"Validation error in update view: {error_message}")
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
             return Response(
                 BaseResponse.error_response(error_message),
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Session.DoesNotExist:
+            logger.warning("Session not found")
             return Response(
                 BaseResponse.error_response("Session not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in update view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -519,13 +561,15 @@ class SessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_204_NO_CONTENT
             )
         except Session.DoesNotExist:
+            logger.warning("Session not found")
             return Response(
                 BaseResponse.error_response("Session not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error in destroy view: {str(e)}", exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -565,6 +609,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(attendee_id=attendee_id)
 
             if not queryset.exists():
+                logger.info("No attendee found for given filter: attendee_id=%s", attendee_id)
                 return Response(
                     BaseResponse.error_response("No attendee found"),
                     status=status.HTTP_404_NOT_FOUND
@@ -572,6 +617,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
 
             page = self.paginate_queryset(queryset)
             if not page:
+                logger.info("No attendee found for page: %s", request.query_params.get('page'))
                 return Response(
                     BaseResponse.error_response("No attendee found for the given page"),
                     status=status.HTTP_404_NOT_FOUND
@@ -583,8 +629,9 @@ class AttendeeViewSet(viewsets.ModelViewSet):
                 message="Attendees retrieved successfully"
             ))
         except Exception as e:
+            logger.error("Error retrieving attendees: %s", str(e), exc_info=True)
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -608,15 +655,24 @@ class AttendeeViewSet(viewsets.ModelViewSet):
             )
         except ValidationError as e:
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
+            logger.warning("Validation error on attendee creation: %s", error_message)
             return Response(
                 BaseResponse.error_response(error_message),
                 status=status.HTTP_400_BAD_REQUEST
             )
         except IntegrityError:
+            logger.warning("Integrity error: Duplicate email registration attempt")
             return Response(
                 BaseResponse.error_response("Email has been registered for this event."),
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except Exception as e:
+            logger.error("Unexpected error on attendee creation: %s", str(e), exc_info=True)
+            return Response(
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
     @extend_schema(
         summary="List Attendee by event",
@@ -647,7 +703,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -689,6 +745,7 @@ class TrackViewSet(viewsets.ModelViewSet):
             queryset = self.filter_queryset(self.get_queryset())
 
             if not queryset.exists():
+                logger.warning("No tracks found")
                 return Response(
                     BaseResponse.error_response("No tracks found"),
                     status=status.HTTP_404_NOT_FOUND
@@ -696,6 +753,7 @@ class TrackViewSet(viewsets.ModelViewSet):
 
             page = self.paginate_queryset(queryset)
             if not page:
+                logger.warning("No tracks found for the given page")
                 return Response(
                     BaseResponse.error_response("No tracks found for the given page"),
                     status=status.HTTP_404_NOT_FOUND
@@ -707,8 +765,9 @@ class TrackViewSet(viewsets.ModelViewSet):
                 message="Tracks retrieved successfully"
             ))
         except Exception as e:
+            logger.error(f"Error fetching tracks: {str(e)}")
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -731,10 +790,17 @@ class TrackViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED
             )
         except ValidationError as e:
+            logger.warning(f"Validation error: {e}")  
             error_message = str(e.detail) if isinstance(e.detail, str) else str(e.detail.get('non_field_errors', ['Validation error'])[0])
             return Response(
                 BaseResponse.error_response(error_message),
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error create track: {str(e)}")
+            return Response(
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @extend_schema(
@@ -754,13 +820,15 @@ class TrackViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         except Http404:
+            logger.warning(f"Track not found for ID: {kwargs.get('pk')}")  
             return Response(
                 BaseResponse.error_response("Track not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error retrieving track: {str(e)}")  
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -781,12 +849,14 @@ class TrackViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_204_NO_CONTENT
             )
         except Http404:
+            logger.warning(f"Track not found for deletion: ID {kwargs.get('pk')}")  
             return Response(
                 BaseResponse.error_response("Track not found"),
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"Error deleting track: {str(e)}")  
             return Response(
-                BaseResponse.error_response(str(e)),
+                BaseResponse.error_response("An internal server error occurred. Please try again later."),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
