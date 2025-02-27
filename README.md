@@ -23,6 +23,8 @@ Events that are handled here can have tracks, then within the tracks there are s
 Later there are attendees who can register for this event, but the registered email cannot be registered again at the same event. 
 
 Because everything in the event must be in order, so it is not allowed to collide or coincide with the session in the track, this is because the event organizer may have few employees, so only those who are only able to handle one track at a time. Likewise with events, whose times should not collide with each other. 
+<br>
+
 
 <br>
 
@@ -103,9 +105,6 @@ Destroying test database for alias 'default' ('test_evman')...
 
 For API documentation, please see the URL **http://localhost:8001/api/docs/**
 
-### Constrain
-<br><br>
-Konstrain pada database yang per
 
 ## Security & Reliability
 <br>
@@ -116,13 +115,41 @@ Using tokens with the HttpOnly attribute is crucial for enhancing the security o
 
 #### Rate Limiter
 Rate limit by IP on core/utils/limit.py file will be used as decorators function, especially on unauthenticated endpoints, serves to limit the number of requests that can be made by an IP address in a given period of time. This prevents abuse or over-exploitation of the endpoint, such as brute force attacks, DDoS, or unreasonable use of server resources. By implementing rate limiting, to make ensure that every user or client has fair access to the endpoint, while maintaining overall system availability and performance. For example, if you set a limit of 100 requests per minute for each IP, users who exceed that limit will receive a 429 Too Many Requests response until a certain period of time passes. This helps protect the system from overloading and ensures stable service for all users.
+<br>
 
 #### Input sanitazion
 Sanitizing user input is essential to prevent Cross-Site Scripting (XSS) attacks, which can allow attackers to inject malicious JavaScript into web applications. If input is not properly sanitized, it can lead to session hijacking, data theft, phishing attacks, or website defacement, compromising both user security and system integrity. Malicious scripts can steal sensitive data like cookies and authentication tokens, enabling unauthorized access. Additionally, uncontrolled JavaScript execution can manipulate the frontend and backend, affecting the application's behavior. By sanitizing input, developers protect users, maintain trust, and prevent security vulnerabilities, ensuring a safer and more reliable web experience. In this project the input sanitization function is placed in the folder core/utils/helpers.py. Which I implemented on the /api/attendees api (POST).
+<br>
+<br>
+
+## Observerability
+<br>
+
+#### Logging
+I implement logs as part of software observability, where logging is one of the main pillars alongside metrics and tracing. By recording logs at the warning and error levels, I can monitor potential issues in the system without overwhelming storage with less relevant information. These logs help detect anomalies, diagnose errors, and ensure the system operates optimally, thereby enhancing the visibility and reliability of the application as a whole.
+<br>
+<br>
 
 
+## Third-Party Libraries Used
+
+The following is a list of third-party libraries used in this project and the reasons for their selection:
+
+1. **Django REST Framework**
+   - Used to build APIs with Django.
+   - Provides features such as serialization, authentication, and viewsets.
 
 
+2. **drf-spectacular**
+   - Used to generate automated API documentation with OpenAPI.
+   - Make it easier for developers to understand the available endpoints.
 
 
+4. **djangorestframework-simplejwt**
+   - Used for JWT (JSON Web Token) based authentication.
+   - Provides a more secure authentication mechanism than session-based authentication.
 
+
+5. **psycopg2-binary**
+   - This library is a PostgreSQL driver for Python, allowing Django to communicate with PostgreSQL databases.
+   - It was chosen to ease setup and development when using PostgreSQL as the backend database.
